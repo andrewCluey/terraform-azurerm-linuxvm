@@ -1,75 +1,100 @@
-# ##################################################################
-# Terraform module to deploy a VM with a single VM NIC. 
-# Additional VM NICs can be deployed through the 'vm_nic' TF module.
-# ##################################################################
-
-provider "azurerm" {
-  features {}
-}
-
-# ################################################
-# DATA LOOKUPS
-# Get data for resources already deployed.
-# Takes inputs from user specified variables file.
-# ################################################
-
-data "azurerm_subnet" "subnet" {
-  name                 = var.subnet_name
-  virtual_network_name = var.vnet_name
-  resource_group_name  = var.vnet_resourcegroup
-}
-
-data "azurerm_resource_group" "rg_for_vm" {
-  name = var.resource_group_name
-}
-
-# #########################
-# CREATE NETWORK INTERFACES
-# #########################
-
-resource "azurerm_network_interface" "linux_vmnic" {
-  name                = "${var.vm_name}-NIC"
-  location            = data.azurerm_resource_group.rg_for_vm.location
-  resource_group_name = data.azurerm_resource_group.rg_for_vm.name
+# Create VM Network Interfaces
+resource "azurerm_network_interface" "vm_nic" {
+  name                = "${var.vm_name}-nic"
+  location            = var.location
+  resource_group_name = var.resourcegroup_name
+  tags                = var.tags
 
   ip_configuration {
     name                          = "${var.vm_name}-ip"
-    subnet_id                     = data.azurerm_subnet.subnet.id
+    subnet_id                     = var.subnet_id
     private_ip_address_allocation = "Dynamic"
   }
 }
 
-# ###################################################
-# CREATE VIRTUAL MACHINES.
-# Only supports Dynamic IP address allocation so far.
-# Needs an improved image reference lookup code block. 
-# ####################################################
 
-resource "azurerm_linux_virtual_machine" "linux_vm" {
-  name                            = var.vm_name
-  resource_group_name             = data.azurerm_resource_group.rg_for_vm.name
-  location                        = data.azurerm_resource_group.rg_for_vm.location
-  size                            = var.vm_size
-  admin_username                  = "adminuser"
-  disable_password_authentication = true
-  tags                            = var.tags
-  network_interface_ids           = [azurerm_network_interface.linux_vmnic.id]
-
+# If 'is_custom_image' = true. Create Custom VM
+resource "azurerm_linux_virtual_machine" "lin_vm" {
+  count               = var.is_custom_image ? 1 : 0
+  name                = var.vm_name
+  location            = var.location
+  resource_group_name = var.resourcegroup_name
+  size                = var.vm_size
+  admin_username      = var.admin_username
+  source_image_id     = var.image_id
+  tags                = var.tags
 
   admin_ssh_key {
-    username   = "adminuser"
-    public_key = var.ssh_pub_key
+    username   = var.admin_username
+    public_key = file("${var.pubkey_path}")
+  }
+
+  network_interface_ids = [
+    azurerm_network_interface.vm_nic.id
+  ]
+
+  boot_diagnostics {
+    storage_account_uri = "https://${var.diagnostics_storage_account_name}.blob.core.windows.net"
   }
 
   os_disk {
-    caching              = "ReadWrite"
-    storage_account_type = var.storage_type
+    name                 = lookup(var.storage_os_disk_config, "name", "${var.vm_name}-osdisk")
+    caching              = lookup(var.storage_os_disk_config, "caching", null)
+    storage_account_type = lookup(var.storage_os_disk_config, "storage_account_type", null)
+    disk_size_gb         = lookup(var.storage_os_disk_config, "disk_size_gb", null)
   }
 
+  identity {
+    type = "SystemAssigned"
+  }
+
+  plan {
+    name      = lookup(var.plan, "name", null)
+    product   = lookup(var.plan, "product", null)
+    publisher = lookup(var.plan, "publisher", null)
+  }
+}
+
+
+# If 'is_custom_image' = false. Create VM from standard image.
+resource "azurerm_linux_virtual_machine" "vm" {
+  count               = var.is_custom_image ? 0 : 1
+  name                = var.vm_name
+  location            = var.location
+  resource_group_name = var.resourcegroup_name
+  size                = var.vm_size
+  admin_username      = var.admin_username
+  provision_vm_agent  = true
+  tags                = var.tags
+
+  admin_ssh_key {
+    username   = var.admin_username
+    public_key = file("${var.pubkey_path}")
+  }
+
+  network_interface_ids = [
+    azurerm_network_interface.vm_nic.id
+  ]
+
   source_image_reference {
-    publisher = "Canonical"
-    offer     = "UbuntuServer"
-    sku       = "18.04-LTS"
-    version   = "latest"
+    offer     = lookup(var.vm_image, "offer", null)
+    publisher = lookup(var.vm_image, "publisher", null)
+    sku       = lookup(var.vm_image, "sku", null)
+    version   = lookup(var.vm_image, "version", null)
+  }
+
+  boot_diagnostics {
+    storage_account_uri = "https://${var.diagnostics_storage_account_name}.blob.core.windows.net"
+  }
+
+  os_disk {
+    name                 = lookup(var.storage_os_disk_config, "name", "${var.vm_name}-osdisk")
+    caching              = lookup(var.storage_os_disk_config, "caching", null)
+    storage_account_type = lookup(var.storage_os_disk_config, "storage_account_type", null)
+    disk_size_gb         = lookup(var.storage_os_disk_config, "disk_size_gb", null)
+  }
+
+  identity {
+    type = "SystemAssigned"
   }
 }
