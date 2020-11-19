@@ -63,7 +63,6 @@ variable "pubkey_path" {
   type        = string
 }
 
-
 variable "diagnostics_storage_account_name" {
   description = "The Storage account to use for VM diagnostics"
   type        = string
@@ -96,4 +95,5 @@ variable "image_id" {
 variable "plan" {
   description = "A Plan block to be used when the source VM image was taken from a marketplace image (Required data will be tagged on to the VM Image.)"
   type        = map(string)
+  default     = null
 }
