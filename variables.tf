@@ -58,11 +58,6 @@ variable "admin_username" {
   default     = "adminuser"
 }
 
-variable "pubkey_path" {
-  description = "Th epath to the public key file for accessing the admin user."
-  type        = string
-}
-
 variable "diagnostics_storage_account_name" {
   description = "The Storage account to use for VM diagnostics"
   type        = string
@@ -96,4 +91,9 @@ variable "plan" {
   description = "A Plan block to be used when the source VM image was taken from a marketplace image (Required data will be tagged on to the VM Image.)"
   type        = map(string)
   default     = null
+}
+
+variable "pubkey" {
+  description = "The SSH Public Key to use for the admin user on the new Linux VM"
+  type        = string
 }
