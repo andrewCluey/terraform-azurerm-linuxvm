@@ -26,7 +26,7 @@ resource "azurerm_linux_virtual_machine" "lin_vm" {
 
   admin_ssh_key {
     username   = var.admin_username
-    public_key = file("${var.pubkey_path}")
+    public_key = var.pubkey
   }
 
   network_interface_ids = [
@@ -69,7 +69,7 @@ resource "azurerm_linux_virtual_machine" "vm" {
 
   admin_ssh_key {
     username   = var.admin_username
-    public_key = file("${var.pubkey_path}")
+    public_key = var.pubkey
   }
 
   network_interface_ids = [
